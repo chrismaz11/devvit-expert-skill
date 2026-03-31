@@ -1,75 +1,115 @@
 # devvit-expert-skill
 
-A Claude skill that makes Claude an expert Devvit developer. Drop it into any Cowork or Claude Code session and Claude instantly knows the full Devvit platform — useWebView, Redis, scheduler jobs, the Reddit API, message passing patterns, and more.
+A standalone LLM skill for Reddit Devvit developers.
 
-Built by [@chrismaz11](https://github.com/chrismaz11), founder of TrustSignal.
+This repo packages a Devvit-focused skill that pushes models toward the current
+Devvit Web workflow instead of mixed legacy examples. The goal is simple:
+improve code accuracy for Reddit Devvit apps by making the model classify the
+repo correctly, follow `devvit.json`, respect the `/api` versus `/internal`
+split, and keep old `@devvit/public-api` patterns in maintenance-only mode.
 
----
+## What this skill is
 
-## What it does
+- A reusable skill folder you can drop into Codex, Claude Code, or similar
+  skill-based workflows
+- A Devvit Web-first guide for building, debugging, migrating, and publishing
+  Reddit apps
+- A compact main skill file plus deeper references for architecture,
+  configuration, patterns, and migration
 
-Without this skill, Claude guesses at Devvit APIs and gets things wrong — hallucinating fake properties, misusing cron format, or missing the critical `event.data.data.message` double-nesting. With this skill, Claude writes correct Devvit code on the first try.
+## What it optimizes for
 
-**Eval results:** 100% pass rate with skill vs 73% without (the key failure was a weekly scheduler job where Claude without the skill hallucinated `recurrence: 'weekly'` and `dayOfWeek: 'sunday'` — neither of which exist in Devvit).
+- Correct repo classification: Devvit Web versus legacy public-api
+- Config-first implementation with `devvit.json` as the source of truth
+- Clear separation between client UX routes and Reddit callback routes
+- Safer handling of Redis, settings, secrets, triggers, scheduler tasks, and
+  external HTTP
+- Fewer hallucinated APIs and fewer mixed-generation Devvit examples
 
----
+## Repo layout
 
-## What's covered
-
-- **useWebView** — full server↔web wiring, message passing, mount/unmount
-- **Redis** — strings, hashes, sorted sets, lists, transactions, global scope
-- **Scheduler** — cron jobs (ET timezone), one-time jobs, AppInstall pattern
-- **Reddit API** — posts, comments, users, DMs, subreddit actions
-- **Triggers** — AppInstall, PostSubmit, CommentCreate, ModAction, etc.
-- **UIClient** — toasts, forms, navigation (Blocks context only)
-- **Realtime** — pub/sub channels for live updates
-- **13 copy-paste patterns** — leaderboard, user profiles, atomic counters, ET timezone, rate-limited DMs, error handling, and more
-- **Key gotchas** — the double-nesting bug, ET cron, undefined userId, ui context limits
-
----
-
-## Files
-
-```
-SKILL.md                  ← Main skill file (load this)
+```text
+SKILL.md
 references/
-  api.md                  ← Full API reference (@devvit/public-api 0.12.x)
-  patterns.md             ← 13 copy-paste patterns
+  api.md
+  patterns.md
+agents/
+  openai.yaml
 ```
 
----
+- `SKILL.md`: primary instructions and trigger metadata
+- `references/api.md`: config, runtime, endpoint, settings, Redis, and docs
+  guidance
+- `references/patterns.md`: implementation order, route taxonomy, Redis usage,
+  and migration tactics
+- `agents/openai.yaml`: UI metadata for environments that surface skills in a
+  picker
 
-## How to install
+## Installation
 
-### In Claude Cowork / Claude Code
+### Codex
 
-1. Download or clone this repo
-2. Copy the folder into your project's `.claude/skills/` directory:
-   ```
-   .claude/skills/devvit-expert/
-     SKILL.md
-     references/
-       api.md
-       patterns.md
-   ```
-3. Claude will automatically load it when you ask Devvit questions
+Copy this repo into your Codex skills directory as `devvit-expert`:
 
-### Manual (paste into context)
+```text
+~/.codex/skills/devvit-expert/
+  SKILL.md
+  references/
+  agents/
+```
 
-Copy the contents of `SKILL.md` into your system prompt or first message. Claude will read `references/api.md` and `references/patterns.md` on demand.
+### Claude Code
 
----
+Copy it into your project or global Claude skills directory:
 
-## Key rules the skill enforces
+```text
+.claude/skills/devvit-expert/
+  SKILL.md
+  references/
+  agents/
+```
 
-1. `event.data.data.message` — not `event.data.message` (two levels deep!)
-2. Scheduler crons are ET (`'0 20 * * 0'` = Sunday 8 PM New York)
-3. `context.userId` can be undefined — always null-check
-4. `context.ui` is unavailable in scheduler jobs and triggers
-5. All state goes in Redis — no SQL, no external DB by default
+### Manual use
 
----
+If your environment does not support skill folders, load `SKILL.md` first and
+read the reference files on demand.
 
-## r/devvit
+## Skill stance
 
-If this saved you time, drop a comment on r/devvit or open an issue. PRs welcome.
+This repo intentionally prefers:
+
+- modern Devvit Web
+- `devvit.json`
+- client/server split
+- `/api/*` for app UX
+- `/internal/*` for menu actions, forms, triggers, and scheduler callbacks
+
+This repo intentionally de-emphasizes:
+
+- teaching `useWebView` plus `postMessage` as the default for new work
+- treating legacy `@devvit/public-api` examples as the primary source of truth
+- recommending deprecated or older patterns for fresh apps
+
+Legacy guidance is still included, but only for maintaining or migrating
+existing repos.
+
+## Typical use cases
+
+- “Build a new Devvit app feature”
+- “Migrate this repo from older Devvit patterns”
+- “Why is my menu action not firing?”
+- “What belongs in `devvit.json` versus server code?”
+- “How should I structure routes, settings, Redis keys, and scheduler tasks?”
+- “Check whether this app is publish-ready”
+
+## Notes
+
+- This is a standalone Devvit developer skill with no product-specific
+  workflow.
+- The source of truth in this repo is the text-based skill content, not a
+  packaged binary artifact.
+
+## Contributing
+
+Issues and PRs are welcome if they improve Devvit accuracy, align the guidance
+with current Reddit platform patterns, or tighten the skill’s default workflow.

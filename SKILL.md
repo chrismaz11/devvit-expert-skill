@@ -1,102 +1,112 @@
 ---
 name: devvit-expert
 description: >
-  Expert-level Devvit (Reddit developer platform) coding assistant. Use this skill whenever the user is building, debugging, or extending a Reddit app with Devvit — including questions about useWebView, message passing between server and web, Redis state management, scheduled jobs, the Reddit API, custom post types, menu items, triggers, or devvit.yaml config. Also triggers for: "how do I add a feature to my Devvit app", "my scheduler job isn't running", "how do I store data in Devvit", "write code for my Reddit app", "fix this Devvit bug", or anything involving the @devvit/public-api package. When in doubt, use this skill — it dramatically improves code accuracy for Devvit projects.
+  Current Devvit coding assistant for Reddit apps. Use this skill whenever the
+  user is building, debugging, migrating, or publishing a Devvit app. Default
+  to modern Devvit Web with `devvit.json`, `post` + `server`, typed shared
+  contracts, and `/api` and `/internal` endpoints. Treat legacy
+  `@devvit/public-api`, `useWebView`, `webroot`, and `addCustomPostType()` as
+  compatibility-only paths for existing apps.
 ---
 
 # Devvit Expert
 
-You are a Devvit expert. Devvit is Reddit's platform for building custom post types, sidebar widgets, and automated bots that run natively inside Reddit. This skill gives you full platform knowledge so you can write correct Devvit code without guessing.
+Default to **Devvit Web**. Treat legacy `@devvit/public-api` apps as maintenance
+work unless the repo is already legacy or the user explicitly asks for older
+patterns.
 
-## Platform mental model
+## First move
 
-Devvit apps have two worlds that communicate via messages:
+Read the actual project before writing code:
 
-**Server world** (`src/main.tsx` and job files) — TypeScript running in Reddit's sandbox. Has access to Redis, the Reddit API, and the scheduler. No browser, no fetch to arbitrary URLs unless `http: true` is configured.
+1. `package.json`
+2. `devvit.json`
+3. the app entry layout such as `src/client/*`, `src/server/*`, `src/shared/*`,
+   or legacy `src/main.tsx`
 
-**Web world** (`webroot/index.html`) — A regular browser page served inside an iframe (the "web view"). Vanilla JS (or any bundled framework). Communicates with the server via `postMessage`.
+Then classify the repo:
 
-The glue is `useWebView`. You almost always want Devvit Web (useWebView) for interactive apps, not the old Blocks-only approach.
+- **Devvit Web** if it uses `devvit.json` with `post` and `server`, or a
+  client/server split with `/api` and `/internal`
+- **legacy public-api** if it uses `blocks.entry`, `@devvit/public-api`,
+  `Devvit.configure()`, `useWebView`, or `webroot/`
 
-## Quickstart skeleton
+## Default working model
 
-```typescript
-// src/main.tsx
-import { Devvit, useWebView } from '@devvit/public-api';
+For new work and most fixes, use the current Devvit Web template mentality:
 
-type WebToServer = { type: 'INIT_REQUEST' } | { type: 'MY_ACTION'; data: string };
-type ServerToWeb = { type: 'INIT'; payload: any } | { type: 'RESULT'; ok: boolean };
+- `devvit.json` is the source of truth
+- client UI talks to server endpoints, not `postMessage`
+- `/api/*` is for app UX
+- `/internal/*` is for Reddit callbacks such as menu items, triggers, forms,
+  and scheduler tasks
+- external HTTP, Reddit API calls, Redis, and secrets stay on the server
 
-Devvit.configure({ redis: true, redditAPI: true });
+If the docs conflict with the repo, prefer:
 
-Devvit.addCustomPostType({
-  name: 'MyApp',
-  height: 'tall',
-  render: (context) => {
-    const webView = useWebView<WebToServer, ServerToWeb>({
-      url: 'index.html',
-      onMessage: async (msg, hook) => {
-        if (msg.type === 'INIT_REQUEST') {
-          const data = await context.redis.get('my:key');
-          hook.postMessage({ type: 'INIT', payload: data });
-        }
-      },
-    });
-    return <webview id="myWebView" url="index.html" grow />;
-  },
-});
-```
+1. the repo's current starter/template files
+2. `devvit.json` schema and current config docs
+3. current Devvit Web capability docs
+4. legacy docs only for legacy maintenance
 
-```html
-<!-- webroot/index.html -->
-<script>
-  window.addEventListener('message', (event) => {
-    if (event.data.type !== 'devvit-message') return;
-    const msg = event.data.data.message;  // <-- two .data levels!
-    if (msg.type === 'INIT') { /* render */ }
-  });
-  window.parent.postMessage({ type: 'INIT_REQUEST' }, '*');
-</script>
-```
+## Devvit Web vibe-coding workflow
 
-## Key rules (memorize these)
+Implement in this order:
 
-1. **All state is Redis** — no SQL, no external DB unless you use HTTP. `context.redis` is your database.
-2. **Messages nest weirdly on arrival**: web receives server messages as `event.data.data.message` (not `event.data`).
-3. **Scheduler times are ET** — `'0 9 * * *'` is 9 AM America/New_York.
-4. **`context.userId` can be undefined** — users browsing while logged out. Always null-check.
-5. **`context.ui` is Blocks-only** — not available in scheduler jobs or triggers.
-6. **`Devvit.addCustomPostType` is the modern way** — `useWebView` inside `render` is the current best practice.
-7. **`hook.postMessage` vs `webView.postMessage`** — inside `onMessage`, use `hook.postMessage`. Outside (e.g., in render), use the ref returned by `useWebView`.
-8. **Redis keys are scoped per installation** — use `context.redis.global` for cross-subreddit data.
+1. lock down `devvit.json`
+2. add server routes and handlers
+3. define shared request and response types
+4. wire client fetches and UI
+5. validate playtest, build output, permissions, and publishability
 
-## Reference files
+Use the repo's existing template as the coding scaffold. Do not invent a mixed
+architecture when the starter already shows the right imports, route layout, and
+scripts.
 
-For complete API signatures and copy-paste examples, read these files as needed:
+Practical defaults:
 
-- **`references/api.md`** — Full API reference: Context, Redis (strings/hashes/sorted sets/transactions), Scheduler, Reddit API, UIClient, Triggers, Settings, Forms
-- **`references/patterns.md`** — Common patterns: leaderboard, user profiles, daily jobs, idempotent resolvers, web UI state management, error handling
+- interactive UI: `post.dir` for client assets plus `server.entry` for server
+  code
+- menu items: declare in `devvit.json`, implement under `/internal/menu/*`
+- triggers: declare in `devvit.json`, keep handlers idempotent under
+  `/internal/triggers/*`
+- forms: define in `devvit.json`, submit to `/internal/form/*`
+- client requests: use `/api/*`
+- shared contracts: keep typed payloads in `src/shared/*` when the repo uses
+  that pattern
 
-## How to approach tasks
+## Guardrails
 
-**Answering questions**: Explain the concept with a minimal working example. Reference the correct API — if in doubt, read `references/api.md`.
+- Keep secrets out of client code and source control
+- Keep external HTTP calls on the server and whitelist domains in `devvit.json`
+- Design Redis with installation scoping in mind
+- Do not assume key scans, plain sets, or global cross-subreddit state
+- Include the exact `devvit.json` changes when giving code
+- When debugging, check architecture, permissions, endpoint paths, settings, and
+  build output before blaming business logic
 
-**Writing new features**: Think about (1) what data shape goes in Redis, (2) what messages flow between server and web, (3) what scheduled jobs are needed. Write in that order.
+## Legacy compatibility
 
-**Debugging**: The most common bugs are:
-- Missing `event.data.data.message` unwrapping (using `event.data.message` instead)
-- Not awaiting Redis calls
-- Calling `context.ui` from a scheduler/trigger context
-- Scheduler jobs not registered — must call `Devvit.addSchedulerJob()` before `scheduler.runJob()`
-- `context.userId` is undefined for logged-out users
+Legacy repos may still use:
 
-**Editing existing code**: Read the actual file first. Follow the existing key naming conventions (usually in `src/utils/redis.ts`). Keep type definitions in `src/types/index.ts`.
+- `@devvit/public-api`
+- `Devvit.configure()`
+- `Devvit.addMenuItem()`
+- `Devvit.addTrigger()`
+- `Devvit.addSchedulerJob()`
+- `useWebView`
+- `webroot/`
 
-## Commands
-```bash
-npm install        # Install dependencies
-npm run dev        # Playtest locally via Devvit CLI
-npm run build      # Build for production
-npm run upload     # Upload/deploy to Reddit
-npx tsc --noEmit   # Type-check only
-```
+When editing a legacy repo:
+
+- keep fixes narrow unless the user asked to migrate
+- do not teach legacy patterns as the preferred architecture
+- do not recommend `addCustomPostType()` for new work
+- prefer gradual migration to `devvit.json` plus Devvit Web
+
+## References
+
+- Read `references/patterns.md` for the implementation order, route taxonomy,
+  Redis patterns, and migration tactics.
+- Read `references/api.md` for config expectations, endpoint behavior, runtime
+  requirements, and current docs links.

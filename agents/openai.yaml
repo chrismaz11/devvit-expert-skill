@@ -1,0 +1,4 @@
+interface:
+  display_name: "Devvit Expert"
+  short_description: "Devvit Web-first guidance for Reddit apps"
+  default_prompt: "Use $devvit-expert to build, debug, or migrate this Reddit Devvit app with a modern Devvit Web template-first workflow."

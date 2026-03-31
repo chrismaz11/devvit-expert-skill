@@ -1,324 +1,185 @@
-# Devvit Common Patterns
+# Devvit Implementation Patterns
 
-## 1. User profile — load or create
+These patterns are for the coding agent using the skill. Bias toward current
+Devvit Web and keep the workflow template-driven.
 
-```typescript
-async function loadOrCreateUser(context: Devvit.Context): Promise<UserProfile> {
-  const userId = context.userId;
-  const username = context.username;
-  if (!userId || !username) throw new Error('User not logged in');
+## 1. Classify the app before coding
 
-  const existing = await context.redis.get(`user:${userId}`);
-  if (existing) return JSON.parse(existing) as UserProfile;
+Answer these first:
 
-  const profile: UserProfile = {
-    userId,
-    username,
-    karma: 100,
-    streak: 0,
-    remindersEnabled: false,
-    joined: new Date().toISOString(),
-  };
-  await context.redis.set(`user:${userId}`, JSON.stringify(profile));
-  return profile;
-}
-```
+- Is the repo **Devvit Web** or **legacy public-api**?
+- Is config owned by `devvit.json` or `Devvit.configure()`?
+- Are callbacks declared in config or registered in code?
+- Is the repo already publish-ready, or only playtest-ready?
 
-## 2. Full useWebView wiring
+Fast heuristics:
 
-```typescript
-// src/main.tsx
-type WebToServer =
-  | { type: 'INIT_REQUEST' }
-  | { type: 'VOTE'; choice: string }
-  | { type: 'GET_LEADERBOARD' };
+- `devvit.json` with `post` and `server` means current Devvit Web.
+- `src/client`, `src/server`, and `src/shared` strongly suggest the modern
+  template.
+- `blocks.entry`, `src/main.tsx`, `@devvit/public-api`, `useWebView`, or
+  `webroot/` means legacy.
 
-type ServerToWeb =
-  | { type: 'INIT'; user: UserProfile; poll: PollData | null }
-  | { type: 'VOTE_CONFIRMED'; choice: string; user: UserProfile }
-  | { type: 'LEADERBOARD'; entries: Entry[] }
-  | { type: 'ERROR'; message: string };
+## 2. Follow the Devvit Web vibe-coding order
 
-Devvit.addCustomPostType({
-  name: 'MyPoll',
-  height: 'tall',
-  render: (context) => {
-    const webView = useWebView<WebToServer, ServerToWeb>({
-      onMessage: async (msg, hook) => {
-        try {
-          if (msg.type === 'INIT_REQUEST') {
-            const [user, poll] = await Promise.all([
-              loadOrCreateUser(context),
-              getPoll(context),
-            ]);
-            hook.postMessage({ type: 'INIT', user, poll });
-          } else if (msg.type === 'VOTE') {
-            const user = await saveVote(context, msg.choice);
-            hook.postMessage({ type: 'VOTE_CONFIRMED', choice: msg.choice, user });
-          } else if (msg.type === 'GET_LEADERBOARD') {
-            const entries = await getLeaderboard(context);
-            hook.postMessage({ type: 'LEADERBOARD', entries });
-          }
-        } catch (err) {
-          hook.postMessage({ type: 'ERROR', message: String(err) });
-        }
-      },
-    });
-    return <webview url="index.html" grow />;
-  },
-});
-```
+Implement in this order:
 
-```javascript
-// webroot/index.html — receiving messages
-window.addEventListener('message', (event) => {
-  if (event.data.type !== 'devvit-message') return;
-  const msg = event.data.data.message;  // nested twice!
+1. `devvit.json`
+2. server bootstrap and routes
+3. shared types and contracts
+4. client requests and UI
+5. Redis/state updates
+6. playtest and publish checks
 
-  if (msg.type === 'INIT') {
-    state.user = msg.user;
-    state.poll = msg.poll;
-    render();
-  } else if (msg.type === 'ERROR') {
-    showError(msg.message);
+This avoids the most common failure mode: building UI before permissions,
+endpoints, and runtime wiring exist.
+
+## 3. Copy the repo's route taxonomy
+
+Prefer the route structure already shown by the current starter:
+
+- `/api/*` for client-initiated application requests
+- `/internal/menu/*` for menu actions
+- `/internal/form/*` for form submissions
+- `/internal/triggers/*` for triggers
+- `/internal/scheduler/*` for scheduled work
+
+If the repo already composes separate routers under a server entrypoint, extend
+that structure rather than flattening everything into one file.
+
+## 4. Build menu actions as server-backed workflows
+
+Menu action workflow:
+
+1. declare the item in `devvit.json`
+2. implement the handler under `/internal/menu/*`
+3. validate the incoming target id and actor context
+4. return a UI response immediately
+5. log failures without leaking secrets or raw response bodies
+
+Example:
+
+```ts
+app.post('/internal/menu/scan-post', async (c) => {
+  const request = await c.req.json();
+  const postId = request.targetId;
+
+  if (!postId) {
+    return c.json({ showToast: { text: 'Missing post id.', appearance: 'error' } }, 400);
   }
-});
 
-function send(msg) {
-  window.parent.postMessage(msg, '*');
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  send({ type: 'INIT_REQUEST' });
+  return c.json({
+    showToast: { text: 'Scan started.', appearance: 'success' },
+  });
 });
 ```
 
-## 3. Leaderboard with sorted sets
+## 5. Keep trigger and scheduler handlers idempotent
 
-```typescript
-const LEADERBOARD_KEY = 'leaderboard:alltime';
+Trigger and scheduler rules:
 
-async function updateLeaderboard(context: Devvit.Context, userId: string, delta: number) {
-  await context.redis.zIncrBy(LEADERBOARD_KEY, userId, delta);
-}
+- validate the event payload before doing work
+- load the exact Reddit object you need
+- short-circuit if the resource was already processed
+- write a single receipt or state update
+- make reruns safe
 
-async function getTopN(context: Devvit.Context, n: number): Promise<LeaderboardEntry[]> {
-  const members = await context.redis.zRange(LEADERBOARD_KEY, 0, n - 1, {
-    reverse: true,
-    withScores: true,
-  }) as { member: string; score: number }[];
+Useful idempotency keys:
 
-  return Promise.all(members.map(async ({ member, score }, i) => {
-    const userJson = await context.redis.get(`user:${member}`);
-    const user = userJson ? JSON.parse(userJson) : { username: 'Unknown' };
-    return { rank: i + 1, userId: member, username: user.username, score };
-  }));
-}
+- `receipt:post:{postId}`
+- `trigger:post-submit:{postId}`
+- `job:daily-sync:{yyyy-mm-dd}`
 
-async function getUserRank(context: Devvit.Context, userId: string) {
-  return await context.redis.zRank(LEADERBOARD_KEY, userId, { reverse: true });
-  // returns 0 for #1, undefined if not on board
-}
-```
+## 6. Use shared types when the repo supports them
 
-## 4. Scheduled jobs: full pattern
+If the app already has `src/shared/*`, put request and response contracts there.
 
-```typescript
-// Step 1: Define the job handler
-Devvit.addSchedulerJob({
-  name: 'generateDailyCase',
-  onRun: async (event, context) => {
-    const today = getToday();  // YYYY-MM-DD in ET
+Good candidates:
 
-    // Idempotency check — don't run twice
-    const existing = await context.redis.get(`case:${today}`);
-    if (existing) {
-      console.log('Case already exists for', today);
-      return;
-    }
+- menu action response payloads
+- client init and mutation responses
+- external service request and result shapes
 
-    const dailyCase = {
-      date: today,
-      subreddit: 'funny',
-      created: new Date().toISOString(),
-    };
-    await context.redis.set(`case:${today}`, JSON.stringify(dailyCase));
-    console.log('Created case for', today);
-  },
-});
+Do not bury API contracts inside unrelated UI files when the template already
+has a shared layer.
 
-// Step 2: Schedule it on AppInstall
-Devvit.addTrigger({
-  event: 'AppInstall',
-  onEvent: async (_event, context) => {
-    await context.scheduler.runJob({
-      name: 'generateDailyCase',
-      cron: '0 0 * * *',  // midnight ET
-    });
-    console.log('Scheduled generateDailyCase');
-  },
-});
-```
+## 7. External service pattern
 
-## 5. Atomic counter with transactions
+For apps that call external services:
 
-```typescript
-async function atomicIncrement(context: Devvit.Context, key: string, amount: number) {
-  let attempts = 0;
-  while (attempts < 5) {
-    const txn = await context.redis.watch(key);
-    const current = parseInt(await context.redis.get(key) ?? '0');
-    await txn.multi();
-    await txn.set(key, String(current + amount));
-    const result = await txn.exec();
-    if (result !== null) return current + amount;  // success
-    attempts++;
-    await new Promise(r => setTimeout(r, 50));  // backoff
-  }
-  throw new Error('Transaction failed after retries');
-}
-```
+1. whitelist domains in `devvit.json`
+2. keep the call on the server
+3. authenticate with a secret from settings
+4. validate the response before mutating Reddit state
+5. return safe user-facing failures
 
-## 6. ET timezone handling
+Do not move external fetches into the browser layer just to make the UI code
+look simpler.
 
-```typescript
-function getETDateString(date = new Date()): string {
-  const ETOffset = isEDT(date) ? -4 : -5;
-  const etMs = date.getTime() + ETOffset * 3600 * 1000;
-  const etDate = new Date(etMs);
-  return etDate.toISOString().slice(0, 10);  // YYYY-MM-DD
-}
+## 8. Redis patterns that survive current limits
 
-function isEDT(date: Date): boolean {
-  const year = date.getUTCFullYear();
-  const start = getNthSundayOfMonth(year, 2, 2);  // March, 2nd Sunday
-  const end = getNthSundayOfMonth(year, 10, 1);   // November, 1st Sunday
-  return date >= start && date < end;
-}
-// Or use date-fns-tz: formatInTimeZone(date, 'America/New_York', 'yyyy-MM-dd')
-```
+Current constraints mean you should model indexes up front.
 
-## 7. Sending DMs with rate limiting
+Safe patterns:
 
-```typescript
-async function sendReminderDM(context: Devvit.Context, username: string, message: string) {
-  try {
-    await context.reddit.sendPrivateMessage({
-      to: username,
-      subject: 'Daily Docket Reminder',
-      text: message,
-    });
-  } catch (err) {
-    // DMs can fail if user has messaging disabled — don't crash the whole job
-    console.error(`Failed to DM ${username}:`, err);
-  }
-}
+- primary record: `post:{id}`
+- queue surrogate: `queue:pending` as a sorted set
+- user profile: `user:{id}`
+- secondary index: `user-posts:{userId}`
 
-// In a job processing many users, add a small delay to avoid rate limits:
-for (const userId of userIds) {
-  await processUser(context, userId);
-  await new Promise(r => setTimeout(r, 100));  // 100ms between users
-}
-```
+Avoid:
 
-## 8. Custom post creation from menu item
+- key scans
+- plain Redis sets
+- logic that assumes a global shared store across installations
+- designs that depend on pipelining
 
-```typescript
-Devvit.addMenuItem({
-  label: '⚖️ Create Daily Docket Post',
-  location: 'subreddit',
-  forUserType: 'moderator',
-  onPress: async (_event, context) => {
-    const post = await context.reddit.submitPost({
-      subredditName: context.subredditName!,
-      title: `Daily Docket — ${getETDateString()}`,
-      preview: (
-        <vstack backgroundColor="#1a1a2e" padding="large" alignment="center middle">
-          <text color="white" size="xlarge" weight="bold">⚖️ Loading...</text>
-        </vstack>
-      ),
-    });
-    context.ui.navigateTo(post);
-    context.ui.showToast({ text: 'Post created!', appearance: 'success' });
-  },
-});
-```
+## 9. Legacy migration pattern
 
-## 9. Storing lists of IDs
+When a repo uses legacy Blocks or `useWebView`, migrate incrementally:
 
-**Option A: Redis list (ordered, allows duplicates)**
-```typescript
-await context.redis.rPush(`votes:${date}`, userId);
-const allVoters = await context.redis.lRange(`votes:${date}`, 0, -1);
-```
+1. keep the existing app working
+2. introduce `devvit.json` as the source of truth
+3. move permissions out of `Devvit.configure()`
+4. replace message passing with explicit server endpoints
+5. move settings and secrets into `devvit.json`
+6. remove deprecated custom-post code last
 
-**Option B: Redis sorted set (ordered by score, unique members)**
-```typescript
-await context.redis.zAdd(`votes:${date}`, { member: userId, score: Date.now() });
-const allVoters = await context.redis.zRange(`votes:${date}`, 0, -1);
-const count = await context.redis.zCard(`votes:${date}`);
-```
+Do not choose a one-shot rewrite unless the user explicitly asks for it.
 
-## 10. Error handling strategy
+## 10. Publish-readiness checklist
 
-```typescript
-onMessage: async (msg, hook) => {
-  try {
-    // ... handle message
-  } catch (err) {
-    console.error('Error handling', msg.type, err);
-    hook.postMessage({ type: 'ERROR', message: 'Something went wrong. Try again.' });
-  }
-},
-```
+Before calling the app ready:
 
-In scheduled jobs, don't let one user's failure crash the whole job:
-```typescript
-const results = await Promise.allSettled(userIds.map(id => processUser(context, id)));
-const failures = results.filter(r => r.status === 'rejected');
-if (failures.length > 0) console.error(`${failures.length} users failed`);
-```
+- `devvit.json` validates and matches current sections
+- new code does not introduce `addCustomPostType()`
+- secrets are not hardcoded
+- required domains are whitelisted
+- menu, trigger, form, and scheduler endpoints exist where declared
+- build outputs match `post.dir` and `server.entry`
+- `package.json` scripts still reflect the template's flow
+- the app has been exercised with playtest, not just static inspection
 
-## 11. Settings-based configuration
+## 11. Debugging order
 
-```typescript
-// Define:
-Devvit.addSettings([
-  { name: 'maxStake', type: 'number', label: 'Max stake per bet', scope: 'installation', defaultValue: 500 },
-]);
+Check in this order:
 
-// Read in any context:
-const maxStake = (await context.settings.get<number>('maxStake')) ?? 500;
-```
+1. wrong architecture assumption
+2. missing or incorrect `devvit.json` permissions
+3. wrong endpoint path or wrong `/api` vs `/internal` split
+4. build output mismatch
+5. missing settings or secrets
+6. Reddit object lookup failure
+7. Redis schema or idempotency bug
+8. business-logic bug
 
-## 12. Pagination with Redis cursors
+## 12. What to say when docs disagree
 
-```typescript
-async function getAllUserKeys(context: Devvit.Context): Promise<string[]> {
-  const keys: string[] = [];
-  let cursor = 0;
-  do {
-    const result = await context.redis.scan(cursor, 'user:*', 100);
-    cursor = result.cursor;
-    keys.push(...result.keys);
-  } while (cursor !== 0);
-  return keys;
-}
-```
+Make the conflict explicit and choose the safer path:
 
-## 13. Blocks JSX quick reference
+- current Devvit Web docs and templates outrank mixed-era examples
+- some official pages still show older package names or older examples
+- the repo's active template is usually the most reliable implementation source
 
-```tsx
-// vstack / hstack = vertical / horizontal flex containers
-<vstack width="100%" height="100%" alignment="center middle" backgroundColor="#1a1a2e">
-  <image url="logo.png" width="120px" height="120px" imageWidth={120} imageHeight={120} />
-  <text size="xlarge" color="white" weight="bold">Title</text>
-  <spacer size="medium" />
-  <button onPress={() => doThing()} appearance="primary">Click me</button>
-  <webview url="index.html" grow />
-</vstack>
-
-// Text sizes: 'xsmall' | 'small' | 'medium' | 'large' | 'xlarge' | 'xxlarge'
-// button appearance: 'primary' | 'secondary' | 'plain' | 'bordered' | 'destructive'
-// padding/gap: 'none' | 'xsmall' | 'small' | 'medium' | 'large'
-```
+Do not confidently synthesize a hybrid architecture when the repo already shows
+the correct one.
