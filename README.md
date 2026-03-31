@@ -10,8 +10,9 @@ split, and keep old `@devvit/public-api` patterns in maintenance-only mode.
 
 ## What this skill is
 
-- A reusable skill folder you can drop into Codex, Claude Code, or similar
-  skill-based workflows
+- A reusable skill folder you can drop into Codex or any comparable
+  LLM/developer workflow that supports local skills, system prompts, or
+  reusable instruction packs
 - A Devvit Web-first guide for building, debugging, migrating, and publishing
   Reddit apps
 - A compact main skill file plus deeper references for architecture,
@@ -58,21 +59,16 @@ Copy this repo into your Codex skills directory as `devvit-expert`:
   agents/
 ```
 
-### Claude Code
+### Other LLM environments
 
-Copy it into your project or global Claude skills directory:
-
-```text
-.claude/skills/devvit-expert/
-  SKILL.md
-  references/
-  agents/
-```
+If your editor, agent runner, or chat workflow supports local skills, custom
+instruction folders, or reusable prompt packs, copy this repo into the
+equivalent location as `devvit-expert`.
 
 ### Manual use
 
-If your environment does not support skill folders, load `SKILL.md` first and
-read the reference files on demand.
+If your environment does not support skill folders, load `SKILL.md` as a system
+prompt or reusable instruction file and read the reference files on demand.
 
 ## Skill stance
 
