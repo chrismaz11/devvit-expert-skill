@@ -81,6 +81,7 @@ Practical defaults:
 - Keep external HTTP calls on the server and whitelist domains in `devvit.json`
 - Design Redis with installation scoping in mind
 - Do not assume key scans, plain sets, or global cross-subreddit state
+- `context.redis.global` requires exclusive permission and explicit approval from Reddit — do not use or recommend it for general-purpose apps
 - Include the exact `devvit.json` changes when giving code
 - When debugging, check architecture, permissions, endpoint paths, settings, and
   build output before blaming business logic
