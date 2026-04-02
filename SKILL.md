@@ -4,16 +4,18 @@ description: >
   Current Devvit coding assistant for Reddit apps. Use this skill whenever the
   user is building, debugging, migrating, or publishing a Devvit app. Default
   to modern Devvit Web with `devvit.json`, `post` + `server`, typed shared
-  contracts, and `/api` and `/internal` endpoints. Treat legacy
+  contracts, and `/api` and `/internal` endpoints. Prefer current React,
+  Three.js, Phaser, Unity, or GameMaker starters based on the product shape.
+  Treat legacy
   `@devvit/public-api`, `useWebView`, `webroot`, and `addCustomPostType()` as
-  compatibility-only paths for existing apps.
+  migration-only paths for existing apps.
 ---
 
 # Devvit Expert
 
-Default to **Devvit Web**. Treat legacy `@devvit/public-api` apps as maintenance
-work unless the repo is already legacy or the user explicitly asks for older
-patterns.
+Default to **Devvit Web**. Treat legacy `@devvit/public-api` and Blocks-era apps
+as migration work, not as a target architecture. If a repo is already legacy,
+keep it working while moving it toward the current Devvit Web template shape.
 
 ## First move
 
@@ -31,11 +33,21 @@ Then classify the repo:
 - **legacy public-api** if it uses `blocks.entry`, `@devvit/public-api`,
   `Devvit.configure()`, `useWebView`, or `webroot/`
 
+Also choose the starter intentionally:
+
+- **mod tools**: default to the current React-based Devvit Web starter unless
+  the repo is already using another current web stack
+- **games**: default to React for UI-heavy apps, Phaser for 2D gameplay,
+  Three.js for 3D or spatial experiences, and Unity or GameMaker only when the
+  game is actually engine-driven
+
 ## Default working model
 
 For new work and most fixes, use the current Devvit Web template mentality:
 
 - `devvit.json` is the source of truth
+- the frontend can use standard web frameworks, but the repo's active starter
+  outranks ad hoc framework mixing
 - client UI talks to server endpoints, not `postMessage`
 - `/api/*` is for app UX
 - `/internal/*` is for Reddit callbacks such as menu items, triggers, forms,
@@ -65,12 +77,15 @@ scripts.
 
 Practical defaults:
 
+- runtime: assume Node.js `22.2.0+` unless the repo is pinned differently for a
+  verified reason
 - interactive UI: `post.dir` for client assets plus `server.entry` for server
   code
 - menu items: declare in `devvit.json`, implement under `/internal/menu/*`
 - triggers: declare in `devvit.json`, keep handlers idempotent under
   `/internal/triggers/*`
-- forms: define in `devvit.json`, submit to `/internal/form/*`
+- forms: use direct client forms where supported; use `/internal/form/*` for
+  server-backed submissions
 - client requests: use `/api/*`
 - shared contracts: keep typed payloads in `src/shared/*` when the repo uses
   that pattern
@@ -99,10 +114,24 @@ Legacy repos may still use:
 
 When editing a legacy repo:
 
-- keep fixes narrow unless the user asked to migrate
+- keep fixes narrow only as an intermediate step while planning migration
 - do not teach legacy patterns as the preferred architecture
 - do not recommend `addCustomPostType()` for new work
-- prefer gradual migration to `devvit.json` plus Devvit Web
+- always migrate off Blocks and legacy public-api patterns
+- prefer gradual migration to `devvit.json` plus Devvit Web unless the user
+  explicitly wants a rewrite
+
+## Funds and challenge builds
+
+If the user is building for Reddit Developer Funds, a hackathon, or a challenge:
+
+- stay on Devvit Web and use a current starter
+- design for installs, repeat engagement, and moderator-safe rollout
+- add lightweight telemetry for installs, sessions, retention, and key in-app
+  events when the repo permits it
+- check the current Reddit program page before citing payout amounts, deadlines,
+  judging criteria, or active challenge details
+- do not hard-code time-sensitive program claims into code, docs, or launch copy
 
 ## References
 

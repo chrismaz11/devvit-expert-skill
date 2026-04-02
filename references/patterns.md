@@ -20,6 +20,14 @@ Fast heuristics:
 - `blocks.entry`, `src/main.tsx`, `@devvit/public-api`, `useWebView`, or
   `webroot/` means legacy.
 
+Starter choice rules:
+
+- mod tools: default to the React Devvit Web starter
+- games: choose React for UI-heavy apps, Phaser for 2D games, Three.js for 3D
+  experiences, and Unity or GameMaker only when an engine is truly required
+- if the repo already uses a current starter cleanly, extend that starter
+  instead of swapping frameworks mid-task
+
 ## 2. Follow the Devvit Web vibe-coding order
 
 Implement in this order:
@@ -136,7 +144,8 @@ Avoid:
 
 ## 9. Legacy migration pattern
 
-When a repo uses legacy Blocks or `useWebView`, migrate incrementally:
+When a repo uses legacy Blocks or `useWebView`, always plan migration off that
+stack and migrate incrementally:
 
 1. keep the existing app working
 2. introduce `devvit.json` as the source of truth
@@ -145,7 +154,8 @@ When a repo uses legacy Blocks or `useWebView`, migrate incrementally:
 5. move settings and secrets into `devvit.json`
 6. remove deprecated custom-post code last
 
-Do not choose a one-shot rewrite unless the user explicitly asks for it.
+Do not choose a one-shot rewrite unless the user explicitly asks for it, but do
+not leave Blocks as the intended end state.
 
 ## 10. Publish-readiness checklist
 
@@ -159,6 +169,13 @@ Before calling the app ready:
 - build outputs match `post.dir` and `server.entry`
 - `package.json` scripts still reflect the template's flow
 - the app has been exercised with playtest, not just static inspection
+
+If the app is targeting Developer Funds or a challenge, also verify:
+
+- the current program page was checked for live rules and dates
+- the app uses a current Devvit Web starter, not Blocks
+- basic product telemetry exists for installs, sessions, and repeat engagement
+- launch copy avoids stale prize amounts or expired challenge claims
 
 ## 11. Debugging order
 

@@ -23,7 +23,8 @@ Devvit Web uses a client/server split:
 
 - `devvit.json` defines app metadata, permissions, callbacks, settings, and dev
   config
-- client code renders the Reddit web experience
+- client code renders the Reddit web experience and can use standard web stacks
+  such as React or other browser frameworks
 - server code handles Reddit API access, Redis, settings, and external fetches
 - shared types can live in `src/shared/*` when the repo uses that pattern
 
@@ -43,6 +44,13 @@ Modern starters commonly use:
 - a server bootstrap that mounts `/api` and `/internal`
 - `npm run dev` wrapping `devvit playtest`
 - `deploy` and `launch` scripts for upload and publish flow
+
+Current starter choices to keep in mind:
+
+- React starter: default for most mod tools and UI-heavy apps
+- Three.js starter: default for 3D or spatial experiences
+- Phaser starter: default for 2D games
+- Unity or GameMaker starters: use when the repo is intentionally engine-based
 
 If the repo already has this structure, keep extending it. Do not collapse it
 back into a single `src/main.tsx` just because some docs still show older
@@ -81,11 +89,12 @@ examples.
 
 Important config points:
 
-- `post`, `server`, or `blocks` must exist; new interactive apps should usually
-  use `post` and `server`
+- `post`, `server`, or `blocks` must exist; new interactive apps should use
+  `post` and `server`, while `blocks` is only a legacy compatibility signal
 - `server.entry` must match the built server artifact expected by the starter
-- trigger, form, menu, and scheduler callback endpoints should live under
+- trigger, menu, and scheduler callback endpoints should live under
   `/internal/*`
+- server-backed form submissions should live under `/internal/*`
 - client-initiated application requests should use `/api/*`
 
 ## Endpoint split
@@ -94,7 +103,7 @@ Use the path to communicate intent:
 
 - `/api/*`: client-to-server requests for the app experience
 - `/internal/menu/*`: menu actions
-- `/internal/form/*`: forms
+- `/internal/form/*`: server-backed forms
 - `/internal/triggers/*`: Reddit triggers
 - `/internal/scheduler/*`: scheduled work
 
@@ -140,7 +149,9 @@ app.post('/internal/menu/scan-post', async (c) => {
 ```
 
 Menu responses are server-driven UI effects. Use them for `showToast`,
-`showForm`, or `navigateTo`.
+`showForm`, or `navigateTo`. Some simple client-side flows may not need a
+server round-trip, but server-backed menu actions should follow the `/internal`
+pattern.
 
 ## Triggers
 
@@ -262,6 +273,19 @@ npm run deploy
 If the starter wraps `devvit playtest`, `devvit upload`, or `devvit publish`
 behind scripts, prefer those scripts.
 
+## Programs and challenges
+
+If the app is being built for Developer Funds, a hackathon, or a challenge:
+
+- verify the current program page before citing prize pools, dates, or judging
+  criteria
+- prefer current Devvit Web starters and avoid Blocks entirely
+- optimize for installs, repeat sessions, and retention rather than one-off
+  novelty
+- add lightweight telemetry for installs, sessions, and core gameplay or mod
+  actions when the repo can support it
+- keep launch copy free of stale claims about active programs
+
 ## Legacy path
 
 Legacy repos may still use:
@@ -277,7 +301,8 @@ Legacy repos may still use:
 Important caveat:
 
 - do not generate fresh `addCustomPostType()` code
-- if a repo already uses it, keep fixes narrow and propose migration
+- if a repo already uses it, keep fixes narrow while moving the repo toward
+  migration
 
 ## Migration checklist
 
@@ -294,6 +319,7 @@ When modernizing a legacy app:
 
 - Devvit Web overview: https://developers.reddit.com/docs/capabilities/devvit-web/devvit_web_overview
 - Devvit configuration: https://developers.reddit.com/docs/capabilities/devvit-web/devvit_web_configuration
+- Template library: https://developers.reddit.com/docs/examples/template-library
 - Scheduler: https://developers.reddit.com/docs/capabilities/server/scheduler
 - Redis: https://developers.reddit.com/docs/capabilities/server/redis
 - Menu actions: https://developers.reddit.com/docs/capabilities/client/menu-actions
