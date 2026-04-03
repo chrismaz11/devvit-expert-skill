@@ -109,6 +109,10 @@ Use the path to communicate intent:
 
 This is the modern replacement for `useWebView` plus `postMessage`.
 
+To switch the post between compact and expanded view from the client, use
+`requestExpandedMode()` (available on the `devvit` client object or as a direct
+import) instead of the legacy `useWebView` hook.
+
 ## Menu actions
 
 Declare menu items in `devvit.json`:
@@ -303,11 +307,14 @@ Legacy repos may still use:
 - `Devvit.addMenuItem()`
 - `Devvit.addTrigger()`
 
-Important caveat:
+Important caveats:
 
 - do not generate fresh `addCustomPostType()` code
 - if a repo already uses it, keep fixes narrow while moving the repo toward
   migration
+- `devvit.yaml` is only valid for **Devvit Singleton / Modtools Apps** (apps
+  that use menu actions, triggers, or scheduler without a post entry point); it
+  is not used for Devvit Web apps — use `devvit.json` instead
 
 ## Migration checklist
 
