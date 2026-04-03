@@ -206,6 +206,11 @@ Current constraints matter:
 - pipelining is not supported
 - only sorted sets are supported; plain sets are not
 
+> ⚠️ **`context.redis.global` is restricted**: Global cross-installation Redis
+> access (`context.redis.global`) requires exclusive permission and explicit
+> approval from Reddit. Do not recommend or use it for general-purpose apps.
+> Design for installation-scoped storage only.
+
 Design implications:
 
 - maintain explicit indexes up front
