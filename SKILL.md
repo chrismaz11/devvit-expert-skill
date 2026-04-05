@@ -100,6 +100,7 @@ Practical defaults:
 - Include the exact `devvit.json` changes when giving code
 - When debugging, check architecture, permissions, endpoint paths, settings, and
   build output before blaming business logic
+- `devvit.yaml` is only valid for Devvit Singleton / Modtools Apps; Devvit Web apps use `devvit.json`
 
 ## Legacy compatibility
 
@@ -121,6 +122,8 @@ When editing a legacy repo:
 - always migrate off Blocks and legacy public-api patterns
 - prefer gradual migration to `devvit.json` plus Devvit Web unless the user
   explicitly wants a rewrite
+- replace `useWebView` view-switching with `requestExpandedMode()` (the client
+  API for switching between compact and expanded post view)
 
 ## Funds and challenge builds
 
